@@ -62,7 +62,9 @@ int main () {
 
   while (1) {
 
+    printf ("recieving ...\n");
     n = recvfrom (sd, buffer, MAXBUFFER, 0, (struct sockaddr *) &client, (socklen_t *) &len);
+    printf ("sizeof msg: %d\n", n);
 
     if ( n == -1 ) {
       perror ("recvfrom() failed");
@@ -84,5 +86,6 @@ int main () {
 
   }
 
+  printf ("Server shutdown normally.\n");
   return EXIT_SUCCESS;
 }

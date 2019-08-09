@@ -9,6 +9,10 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
+/* APPLICATION PROTOCOL 
+ *  UDP & TCP Commands: WHO, BROADCAST
+ *  TCP Only Commands: LOGIN, LOGOUT, SEND, 
+*/
 #define CLIENT_CONNECTIONS 100
 #define BUFFER_SIZE 1024
 #define BACKLOG 10
@@ -137,7 +141,7 @@ int main (int argc, char** argv) {
 
 void * tcp_client_enter (void* args) {
   int client_sd = *( (int*) args );
-  printf ("CHILD %lu: Connected to client (sd -> %d).\n", pthread_self(), client_sd);
+  printf ("CHILD %lu: Connected to client (sd -> %d).\n", (unsigned long) pthread_self(), client_sd);
 
   char buffer[BUFFER_SIZE];
   int n;
@@ -152,13 +156,13 @@ void * tcp_client_enter (void* args) {
 
     else if ( n == 0 ) {
       // the client has disconnected.
-      printf ("CHILD %lu: Child disconnected\n", pthread_self());
+      printf ("CHILD %lu: Child disconnected\n", (unsigned long) pthread_self());
       pthread_exit (0);
     }
     else {
       buffer[n] = '\0';
       printf ("CHILD %lu: recieve -> %s\n",
-        pthread_self(), buffer);
+        (unsigned long) pthread_self(), buffer);
       // x
     }
 
