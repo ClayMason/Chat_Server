@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <string.h>
 
 /* APPLICATION PROTOCOL
  *  UDP & TCP Commands: WHO, BROADCAST
@@ -18,6 +19,7 @@
 #define BACKLOG 10
 #define ADDRBUFFER 128
 
+short command_index (char* message, char** command_list);
 void * tcp_client_enter (void* args);
 
 int main (int argc, char** argv) {
@@ -98,6 +100,7 @@ int main (int argc, char** argv) {
   char addr_buffer [ADDRBUFFER];
   struct sockaddr_in client;
   int fromlen = sizeof (client);
+  int n;
 
   while (1) {
     // set the readfds to include the tcp socket discriptor and all the client socket descriptors
@@ -137,7 +140,7 @@ int main (int argc, char** argv) {
       n = recvfrom (udp_sd, buffer, BUFFER_SIZE, 0, (struct sockaddr *) &client, (socklen_t *)&fromlen);
       printf ("MAIN: Rcvd incoming UDP datagram from: %s:%d\n",
       inet_ntop(AF_INET, &client.sin_addr, addr_buffer, ADDRBUFFER),
-      ntohs(client.sin_port)));
+      ntohs(client.sin_port));
     }
 
   }
@@ -173,4 +176,24 @@ void * tcp_client_enter (void* args) {
     }
 
   }
+}
+
+
+// given a message, return the index of the command in the command list
+//    if a command is found, return the index
+//    if the index is not found, return -1
+//    message syntax "COMMAND_NAME extra info"
+short command_index (char* message, char** command_list, int cmd_size) {
+  int end_index = 0;
+
+  while ( *(message+end_index) != ' ' && *(message+end_index) != '\0' )
+    ++end_index;
+
+  char cmd[end_index + 1];
+  cmd[end_index] = '\0';
+  strncpy (cmd, message, end_index);
+  for ( int i = 0; i < cmd_size; ++i ) {
+    if ( strcmp(cmd, *(command_list+i)) == 0 ) return i;
+  }
+  return -1;
 }
