@@ -7,9 +7,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 #define CLIENT_CONNECTIONS 100
 #define BUFFER_SIZE 1024
+#define BACKLOG 10
+
+void * tcp_client_enter (void* args);
 
 int main (int argc, char** argv) {
   // parse arguments
@@ -75,12 +79,21 @@ int main (int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  if ( listen(tcp_sd, BACKLOG) == -1 ) {
+    perror ("listen() failed");
+    return EXIT_FAILURE;
+  }
+
   printf ("TCP server successfully setup on port: %d\n", port);
 
   // setup the client connections
   int client_sockets[CLIENT_CONNECTIONS]; // manage CLIENT_CONNECTIONS udp clients
   int client_sockets_count = 0;
   fd_set readfds;
+
+  // setup client
+  struct sockaddr_in client;
+  int fromlen = sizeof (client);
 
   while (1) {
     // set the readfds to include the tcp socket discriptor and all the client socket descriptors
@@ -102,10 +115,52 @@ int main (int argc, char** argv) {
     printf ("%d descriptors are ready.\n", ready);
     // check if activity on the tcp listener descriptor
     if ( FD_ISSET(tcp_sd, &readfds)) {
-      // printf ("Activity on the tcp socket.\n");
+
+      // make a new thread at this point...
+      int client_sd = accept (tcp_sd,
+        (struct sockaddr*) &client,
+        (socklen_t *)&fromlen);
+
+      printf ("MAIN: Rcvd incoming TCP connection from: %s\n", inet_ntoa((struct in_addr) client.sin_addr));
+      // -> pass to thread now ...
+      pthread_t thread_id;
+      pthread_create (&thread_id, NULL,
+        tcp_client_enter, (void*) &client_sd);
+
+      // the client should now be in the new thread
     }
 
   }
 
   return EXIT_SUCCESS;
+}
+
+void * tcp_client_enter (void* args) {
+  int client_sd = *( (int*) args );
+  printf ("CHILD %lu: Connected to client (sd -> %d).\n", pthread_self(), client_sd);
+
+  char buffer[BUFFER_SIZE];
+  int n;
+
+  while (1) {
+    n = recv (client_sd, buffer, BUFFER_SIZE, 0);
+
+    if ( n == -1 ) {
+      perror ("recv() failed");
+      pthread_exit(0);
+    }
+
+    else if ( n == 0 ) {
+      // the client has disconnected.
+      printf ("CHILD %lu: Child disconnected\n", pthread_self());
+      pthread_exit (0);
+    }
+    else {
+      buffer[n] = '\0';
+      printf ("CHILD %lu: recieve -> %s\n",
+        pthread_self(), buffer);
+      // x
+    }
+
+  }
 }
