@@ -9,13 +9,14 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-/* APPLICATION PROTOCOL 
+/* APPLICATION PROTOCOL
  *  UDP & TCP Commands: WHO, BROADCAST
- *  TCP Only Commands: LOGIN, LOGOUT, SEND, 
+ *  TCP Only Commands: LOGIN, LOGOUT, SEND,
 */
 #define CLIENT_CONNECTIONS 100
 #define BUFFER_SIZE 1024
 #define BACKLOG 10
+#define ADDRBUFFER 128
 
 void * tcp_client_enter (void* args);
 
@@ -51,7 +52,6 @@ int main (int argc, char** argv) {
   udp_server.sin_family = AF_INET;
   udp_server.sin_addr.s_addr = htonl (INADDR_ANY);
   udp_server.sin_port = htons (0); // TODO: set the port to the port given in the args
-
   if ( bind(udp_sd, (struct sockaddr *) &udp_server, sizeof(udp_server)) < 0 ) {
     perror ("bind() failed");
     return EXIT_FAILURE;
@@ -91,11 +91,11 @@ int main (int argc, char** argv) {
   printf ("TCP server successfully setup on port: %d\n", port);
 
   // setup the client connections
-  int client_sockets[CLIENT_CONNECTIONS]; // manage CLIENT_CONNECTIONS udp clients
-  int client_sockets_count = 0;
   fd_set readfds;
 
   // setup client
+  char buffer[BUFFER_SIZE];
+  char addr_buffer [ADDRBUFFER];
   struct sockaddr_in client;
   int fromlen = sizeof (client);
 
@@ -104,10 +104,7 @@ int main (int argc, char** argv) {
     // from udp.
     FD_ZERO( &readfds );
     FD_SET (tcp_sd, &readfds);
-
-    for ( int i = 0; i < client_sockets_count; ++i ) {
-      FD_SET (client_sockets[i], &readfds);
-    }
+    FD_SET (udp_sd, &readfds);
 
     // select from any of the socket descriptors that are ready
     int ready = select(FD_SETSIZE, &readfds, 0, 0, 0);
@@ -132,6 +129,15 @@ int main (int argc, char** argv) {
         tcp_client_enter, (void*) &client_sd);
 
       // the client should now be in the new thread
+    }
+
+    if ( FD_ISSET(udp_sd, &readfds)) {
+      // udp datagram recieved
+      // call recieve ...
+      n = recvfrom (udp_sd, buffer, BUFFER_SIZE, 0, (struct sockaddr *) &client, (socklen_t *)&fromlen);
+      printf ("MAIN: Rcvd incoming UDP datagram from: %s:%d\n",
+      inet_ntop(AF_INET, &client.sin_addr, addr_buffer, ADDRBUFFER),
+      ntohs(client.sin_port)));
     }
 
   }
