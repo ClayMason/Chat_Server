@@ -19,7 +19,16 @@
 #define BACKLOG 10
 #define ADDRBUFFER 128
 
-short command_index (char* message, char** command_list);
+char** user_database;
+in*t user_fds;
+int user_db_index;
+it user_db_size;
+pthread_mutex_t user_db_mutex = PTHREAD_MUTEX_INITIALIZER;
+// pthread_mutex_lock(&user_db_mutex) & pthread_mutex_unlock(&user_db_mutex)
+char* udp_cmd_lst[2];
+char* tcp_cmd_lst[5];
+
+short command_index (char* message, char** command_list, int cmd_size);
 void * tcp_client_enter (void* args);
 
 int main (int argc, char** argv) {
@@ -32,6 +41,28 @@ int main (int argc, char** argv) {
   int port;
   port = atoi(*(argv+1));
   printf ("Setting up server on port: %d\n", port);
+
+  // setup commands list
+  user_db_index = 0;
+  user_db_size = 4;
+
+  user_database = calloc(user_db_size, sizeof(char*));
+  user_fds = calloc(user_db_size, sizeof(int));
+
+  char login_cmd[] = "LOGIN";
+  char who_cmd[] = "WHO";
+  char logout_cmd[] = "LOGOUT";
+  char send_cmd[] = "SEND";
+  char broadcast_cmd[] = "BROADCAST";
+
+  udp_cmd_lst[0] = broadcast_cmd;
+  udp_cmd_lst[1] = who_cmd;
+
+  tcp_cmd_lst[0] = login_cmd;
+  tcp_cmd_lst[1] = who_cmd;
+  tcp_cmd_lst[2] = logout_cmd;
+  tcp_cmd_lst[3] = send_cmd;
+  tcp_cmd_lst[4] = broadcast_cmd;
 
   // setup the server sockets
   int tcp_sd = socket (AF_INET, SOCK_STREAM, 0);
@@ -145,6 +176,10 @@ int main (int argc, char** argv) {
 
   }
 
+  // free and close everything
+  free (user_database);
+  free (user_fds);
+  
   return EXIT_SUCCESS;
 }
 
@@ -184,6 +219,7 @@ void * tcp_client_enter (void* args) {
 //    if the index is not found, return -1
 //    message syntax "COMMAND_NAME extra info"
 short command_index (char* message, char** command_list, int cmd_size) {
+
   int end_index = 0;
 
   while ( *(message+end_index) != ' ' && *(message+end_index) != '\0' )
