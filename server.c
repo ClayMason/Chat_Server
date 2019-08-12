@@ -408,8 +408,8 @@ void * tcp_client_enter (void* args) {
           recipient_index = find(user_database, user_db_index, *(query));
           if ( recipient_index == -1 ) {
             printf ("Sent ERROR (Unknown userid)\nss");
-            char err_msg[] = "ERROR (Unknown userid)\n";
-            send (client_sd, (void *) err_msg, 23, 0);
+            char err_msg[] = "ERROR Unknown userid\n";
+            send (client_sd, (void *) err_msg, 21, 0);
             valid_request = 0;
           }
 
