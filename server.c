@@ -41,6 +41,7 @@ void broadcast (int from_fd, char buffer[], char* username, const struct sockadd
 int indexOf (char* msg, char letter);
 
 int main (int argc, char** argv) {
+  setvbuf(stdout, NULL, _IONBF, 0);
   // parse arguments
   if ( argc < 2 ) {
     fprintf (stderr, "MAIN: ERROR invalid number of arguments.\n");
@@ -224,6 +225,8 @@ int main (int argc, char** argv) {
     }
 
   }
+
+  // join all of the threads.
 
   // free and close everything
   free (user_database);
