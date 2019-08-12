@@ -359,11 +359,11 @@ void * tcp_client_enter (void* args) {
             printf ("\t[%s ] = %ld\n",login_username, strlen(login_username) + 1);
             printf ("\t[%s ] = %ld\n",*(query+1), strlen(*(query+1)) + 1);
           #endif
-            int amount = snprintf (buffer, BUFFER_SIZE, "FROM %s %d %s\n",
+            int amount = snprintf (alloc_buffer, BUFFER_SIZE, "FROM %s %d %s\n",
               login_username, msg_len, buffer+5+strlen(login_username)+strlen(*(query+1))+2);
-            buffer[amount] = '\0';
+            alloc_buffer[amount] = '\0';
 
-            send (user_fds[recipient_index], (void *) buffer, strlen(buffer), 0);
+            send (user_fds[recipient_index], (void *) alloc_buffer, strlen(alloc_buffer), 0);
 
           }
           pthread_mutex_unlock (&user_db_mutex);
@@ -387,12 +387,12 @@ void * tcp_client_enter (void* args) {
           pthread_mutex_lock(&user_db_mutex);
           int broadcast_len = atoi(*query);
           printf ("TEST: %s\n", buffer+10+strlen(*query)+1);
-          int amount = snprintf (buffer, BUFFER_SIZE, "FROM %s %d %s\n",
+          int amount = snprintf (alloc_buffer, BUFFER_SIZE, "FROM %s %d %s\n",
             login_username, broadcast_len, buffer+10+strlen(*query)+1);
-            buffer[amount] = '\0';
+          alloc_buffer[amount] = '\0';
           for ( int i = 0; i < user_db_index; ++i ) {
             // send to all
-            send (user_fds[i], (void *) buffer, strlen(buffer), 0);
+            send (user_fds[i], (void *) alloc_buffer, strlen(alloc_buffer), 0);
           }
           pthread_mutex_unlock(&user_db_mutex);
         }
