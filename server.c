@@ -154,7 +154,10 @@ int main (int argc, char** argv) {
       perror ("select() failed");
       return EXIT_FAILURE;
     }
+
+    #ifdef DEBUG
     printf ("%d descriptors are ready.\n", ready);
+    #endif
     // check if activity on the tcp listener descriptor
     if ( FD_ISSET(tcp_sd, &readfds)) {
 
@@ -218,8 +221,11 @@ void * tcp_client_enter (void* args) {
 
       if (n > 0) buffer[n-1] = '\0';
       else buffer[n] = '\0';
+
+      #ifdef DEBUG
       printf ("CHILD %lu: recieve -> %s\n",
         (unsigned long) pthread_self(), buffer);
+      #endif
       // Check what message was sent.
       short cmd_index = command_index (buffer, tcp_cmd_lst, 5);
       if (cmd_index == -1) {
@@ -241,6 +247,9 @@ void * tcp_client_enter (void* args) {
 
             char* username = buffer+6;
             int username_len = strlen(username);
+
+            printf ("CHILD %lu: Rcvd LOGIN request for userid %s\n",
+              (unsigned long) pthread_self(), username);
 
             #ifdef DEBUG
             printf ("username: %s (len%d)\n", username, username_len);
@@ -288,13 +297,14 @@ void * tcp_client_enter (void* args) {
         // (2) WHO function
         else if (strcmp(tcp_cmd_lst[cmd_index], "WHO") == 0) {
           // return all of the people on the server...
-          printf ("About to check who()...\n");
+          printf ("CHILD %lu: Rcvd WHO request\n", pthread_self());
           who(&alloc_buffer, &bytes_);
           send (client_sd, (void *) alloc_buffer, bytes_, 0);
         }
 
         // (3) LOGOUT function
         else if (strcmp(tcp_cmd_lst[cmd_index], "LOGOUT") == 0) {
+        printf ("CHILD %lu: Rcvd LOGOUT request\n", pthread_self());
           if ( !logged_in ) {
             // give error of not logged in...
             char error_msg[] = "ERROR not logged in.\n";
@@ -303,9 +313,13 @@ void * tcp_client_enter (void* args) {
           else {
             pthread_mutex_lock(&user_db_mutex);
             int login_index = find(user_database, user_db_index, login_username);
+            #ifdef DEBUG
             printf ("Currently logged in as (%s)...\n", user_database[login_index]);
+            #endif
             logout (login_index);
             pthread_mutex_unlock(&user_db_mutex);
+
+            logged_in = 0;
 
             char success_msg[] = "OK!\n";
             send (client_sd, (void *) success_msg, 4, 0);
@@ -349,7 +363,8 @@ void * tcp_client_enter (void* args) {
             valid_request = 0;
           }
 
-          if (valid_request) {
+          if (valid_request) {printf ("CHILD %lu: Rcvd SEND request to userid %s\n",
+            (unsigned long) pthread_self(), *(user_database+recipient_index));
             // send the ok to the sender first...
             char success_msg[] = "OK!\n";
             send (client_sd, (void *) success_msg, 4, 0);
@@ -374,7 +389,8 @@ void * tcp_client_enter (void* args) {
           free (query);
         }
         // (5) BROADCAST function
-        else if (strcmp(tcp_cmd_lst[cmd_index], "BROADCAST") == 0 && logged_in) {
+        else if (strcmp(tcp_cmd_lst[cmd_index], "BROADCAST") == 0) {
+          printf ("CHILD %lu: Rcvd BROADCAST request\n", (unsigned long) pthread_self());
           // int query_size;
           // char ** query;
           //
@@ -396,7 +412,11 @@ void * tcp_client_enter (void* args) {
           // }
           // pthread_mutex_unlock(&user_db_mutex);
 
-          broadcast (buffer, login_username);
+          if (logged_in) broadcast (buffer, login_username);
+          else {
+            char err_msg[] = "ERROR not logged in\n";
+            send (client_sd, err_msg, 20, 0);
+          }
         }
       }
 
