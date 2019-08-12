@@ -290,7 +290,7 @@ void * tcp_client_enter (void* args) {
         if (strcmp(tcp_cmd_lst[cmd_index], "LOGIN") == 0) {
 
           // get the username
-          if (strlen(buffer) > 7) {
+          if (strlen(buffer) > 6) {
 
             char* username = buffer+6;
             int username_len = strlen(username);
