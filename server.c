@@ -392,6 +392,11 @@ void * tcp_client_enter (void* args) {
           int recipient_index;
           // check message validity
           // int find(char** lst, int size, char* wrd)
+
+          pthread_mutex_lock (&user_db_mutex);
+          recipient_index = find(user_database, user_db_index, *(query));
+          printf ("CHILD %lu: Rcvd SEND request to userid %s\n",
+          (unsigned long) pthread_self(), *(user_database+recipient_index));
           if ( msg_len < 1 || msg_len > 990 ) {
             char err_msg[] = "ERROR Invalid msglen\n";
             send (client_sd, (void *) err_msg, 21, 0);
@@ -403,9 +408,6 @@ void * tcp_client_enter (void* args) {
             send (client_sd, (void *) err_msg, 20, 0);
             valid_request = 0;
           }
-
-          pthread_mutex_lock (&user_db_mutex);
-          recipient_index = find(user_database, user_db_index, *(query));
           if ( recipient_index == -1 ) {
             printf ("Sent ERROR (Unknown userid)\nss");
             char err_msg[] = "ERROR Unknown userid\n";
@@ -414,8 +416,6 @@ void * tcp_client_enter (void* args) {
           }
 
           if (valid_request) {
-            printf ("CHILD %lu: Rcvd SEND request to userid %s\n",
-            (unsigned long) pthread_self(), *(user_database+recipient_index));
             // send the ok to the sender first...
             // send the message to the recipient
             #ifdef DEBUG
