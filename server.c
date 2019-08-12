@@ -111,7 +111,7 @@ int main (int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  printf ("Listening for TCP connections on port: %d\n", port);
+  printf ("MAIN: Listening for TCP connections on port: %d\n", port);
 
   // bind the sockets to a port
   // udp bind first
@@ -135,7 +135,7 @@ int main (int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  printf ("Listening for UDP datagrams on port: %d\n", ntohs( udp_server.sin_port ));
+  printf ("MAIN: Listening for UDP datagrams on port: %d\n", ntohs( udp_server.sin_port ));
 
   // setup the client connections
   fd_set readfds;
@@ -305,11 +305,13 @@ void * tcp_client_enter (void* args) {
             pthread_mutex_lock (&user_db_mutex);
 
             if ( username_len < 4 || username_len > 16 || !isAlnumString(username) ) {
+              printf ("Sent ERROR (Invalid userid)\n");
               char error_msg[] = "ERROR Invalid userid\n\0";
               send (client_sd, (void *) error_msg, 22, 0);
             }
 
             else if ( contains(user_database, user_db_index, username) ) {
+              printf ("CHILD %lu: Sent ERROR (Already connected)\n", (unsigned long) pthread_self());
               char error_msg[] = "ERROR Already connected\n\0";
               send (client_sd, (void *) error_msg, 25, 0);
             }
@@ -405,6 +407,7 @@ void * tcp_client_enter (void* args) {
           pthread_mutex_lock (&user_db_mutex);
           recipient_index = find(user_database, user_db_index, *(query));
           if ( recipient_index == -1 ) {
+            printf ("Sent ERROR (Unknown userid)\nss");
             char err_msg[] = "ERROR (Unknown userid)\n";
             send (client_sd, (void *) err_msg, 23, 0);
             valid_request = 0;
