@@ -423,9 +423,11 @@ void * tcp_client_enter (void* args) {
             printf ("\t[%s ] = %ld\n",login_username, strlen(login_username) + 1);
             printf ("\t[%s ] = %ld\n",*(query+1), strlen(*(query+1)) + 1);
           #endif
-            printf ("buffer: %s\n", buffer);
-            int msg_start = indexOf (buffer, (char) 92); // get the first instance of newline -> this is the start of the mesage
-            if (msg_start == -1 || *(buffer+msg_start+1) != 'n') {
+            //printf ("buffer: %s\n", buffer);
+            //int msg_start = indexOf (buffer, (char) 92); // get the first instance of newline -> this is the start of the mesage
+            int msg_start = indexOf (buffer, '\n');
+            // if (msg_start == -1 || *(buffer+msg_start+1) != 'n') {
+            if (msg_start == -1) {
               char err_msg[] = "ERROR (Invalid SEND format)\n";
               send (client_sd, (void *) err_msg, 28, 0);
             }
@@ -433,10 +435,12 @@ void * tcp_client_enter (void* args) {
               char success_msg[] = "OK!\n";
               send (client_sd, (void *) success_msg, 4, 0);
 
-              printf ("msg: [%s]\n", buffer+msg_start+2);
+              #ifdef DEBUG
+              printf ("msg: [%s]\n", buffer+msg_start+1);//2);
+              #endif
 
               int amount = snprintf (alloc_buffer, BUFFER_SIZE, "FROM %s %d %s\n",
-                login_username, msg_len, buffer+msg_start+2);
+                login_username, msg_len, buffer+msg_start+1);//2);
               alloc_buffer[amount] = '\0';
 
               send (user_fds[recipient_index], (void *) alloc_buffer, strlen(alloc_buffer), 0);
