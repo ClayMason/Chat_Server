@@ -37,6 +37,7 @@ int contains (char** lst, int size, char* wrd);
 void logout (int user_index);
 int find(char** lst, int size, char* wrd);
 void who (char** buffer, int* bytes);
+void broadcast (char buffer[], char* username);
 
 int main (int argc, char** argv) {
   // parse arguments
@@ -374,27 +375,29 @@ void * tcp_client_enter (void* args) {
           free (query);
         }
         // (5) BROADCAST function
-        else if (strcmp(tcp_cmd_lst[cmd_index], "BROADCAST") == 0) {
-          int query_size;
-          char ** query;
+        else if (strcmp(tcp_cmd_lst[cmd_index], "BROADCAST") == 0 && logged_in) {
+          // int query_size;
+          // char ** query;
+          //
+          // query = snag(buffer+10, &query_size, 1);
+          // #ifdef DEBUG
+          // printf ("BROADCAST Query: (size -> %d)\n", query_size);
+          // printf ("msglen: %s\n", *query);
+          // #endif
+          //
+          // pthread_mutex_lock(&user_db_mutex);
+          // int broadcast_len = atoi(*query);
+          // printf ("TEST: %s\n", buffer+10+strlen(*query)+1);
+          // int amount = snprintf (alloc_buffer, BUFFER_SIZE, "FROM %s %d %s\n",
+          //   login_username, broadcast_len, buffer+10+strlen(*query)+1);
+          // alloc_buffer[amount] = '\0';
+          // for ( int i = 0; i < user_db_index; ++i ) {
+          //   // send to all
+          //   send (user_fds[i], (void *) alloc_buffer, strlen(alloc_buffer), 0);
+          // }
+          // pthread_mutex_unlock(&user_db_mutex);
 
-          query = snag(buffer+10, &query_size, 1);
-          #ifdef DEBUG
-          printf ("BROADCAST Query: (size -> %d)\n", query_size);
-          printf ("msglen: %s\n", *query);
-          #endif
-
-          pthread_mutex_lock(&user_db_mutex);
-          int broadcast_len = atoi(*query);
-          printf ("TEST: %s\n", buffer+10+strlen(*query)+1);
-          int amount = snprintf (alloc_buffer, BUFFER_SIZE, "FROM %s %d %s\n",
-            login_username, broadcast_len, buffer+10+strlen(*query)+1);
-          alloc_buffer[amount] = '\0';
-          for ( int i = 0; i < user_db_index; ++i ) {
-            // send to all
-            send (user_fds[i], (void *) alloc_buffer, strlen(alloc_buffer), 0);
-          }
-          pthread_mutex_unlock(&user_db_mutex);
+          broadcast (buffer, login_username);
         }
       }
 
@@ -554,4 +557,27 @@ void who (char** buffer, int* bytes) {
     ++(*bytes);
   }
   buffer[*bytes] = '\0';
+}
+
+void broadcast (char buffer[], char* username) {
+  int query_size;
+  char ** query;
+  char send_buffer[BUFFER_SIZE];
+
+  query = snag(buffer+10, &query_size, 1);
+  #ifdef DEBUG
+  printf ("BROADCAST Query: (size -> %d)\n", query_size);
+  printf ("msglen: %s\n", *query);
+  #endif
+
+  pthread_mutex_lock(&user_db_mutex);
+  int broadcast_len = atoi(*query);
+  int amount = snprintf (send_buffer, BUFFER_SIZE, "FROM %s %d %s\n",
+    username, broadcast_len, buffer+10+strlen(*query)+1);
+  send_buffer[amount] = '\0';
+  for ( int i = 0; i < user_db_index; ++i ) {
+    // send to all
+    send (user_fds[i], (void *) send_buffer, strlen(send_buffer), 0);
+  }
+  pthread_mutex_unlock(&user_db_mutex);
 }
