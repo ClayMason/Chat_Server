@@ -20,14 +20,15 @@
 #define ADDRBUFFER 128
 
 char** user_database;
-in*t user_fds;
+int* user_fds;
 int user_db_index;
-it user_db_size;
+int user_db_size;
 pthread_mutex_t user_db_mutex = PTHREAD_MUTEX_INITIALIZER;
 // pthread_mutex_lock(&user_db_mutex) & pthread_mutex_unlock(&user_db_mutex)
 char* udp_cmd_lst[2];
 char* tcp_cmd_lst[5];
 
+char ** snag (char* message, int* size);
 short command_index (char* message, char** command_list, int cmd_size);
 void * tcp_client_enter (void* args);
 
@@ -46,8 +47,8 @@ int main (int argc, char** argv) {
   user_db_index = 0;
   user_db_size = 4;
 
-  user_database = calloc(user_db_size, sizeof(char*));
-  user_fds = calloc(user_db_size, sizeof(int));
+  user_database = (char**) calloc(user_db_size, sizeof(char*));
+  user_fds = (int*) calloc(user_db_size, sizeof(int));
 
   char login_cmd[] = "LOGIN";
   char who_cmd[] = "WHO";
@@ -179,7 +180,7 @@ int main (int argc, char** argv) {
   // free and close everything
   free (user_database);
   free (user_fds);
-  
+
   return EXIT_SUCCESS;
 }
 
@@ -232,4 +233,46 @@ short command_index (char* message, char** command_list, int cmd_size) {
     if ( strcmp(cmd, *(command_list+i)) == 0 ) return i;
   }
   return -1;
+}
+
+char ** snag (char* message, int* size) {
+  // given a message, snag the words one by one and return it
+  // in a char* arr. The size of the char* arr is returned
+
+  // ASSUME: message must end with a '\0'
+  char** msg_wrds;
+  int words_size = 10;
+  msg_wrds = calloc (words_size, sizeof(char*));
+  int _size = 0;
+
+  int msg_start = 0;
+  int msg_end = 0;
+  while (1) {
+    if ( *(message+msg_end) == ' ' || *(message+msg_end) == '\0') {
+      // add word to msg_words and increase size.
+      if ( _size >= words_size) {
+        // realloc more space
+        words_size += 10;
+        msg_wrds = (char**) realloc (msg_wrds, words_size * sizeof(char*));
+      }
+
+      // add the word to the list.
+      int word_length = msg_end-msg_start;
+      if ( word_length > 0 ) {
+        *(msg_wrds+_size) = (char*) calloc (word_length + 1, sizeof(char));
+
+        strncpy (*(msg_wrds+_size), message+msg_start, word_length );
+        msg_start = msg_end + 1;
+
+        ++ _size;
+      }
+
+      if (*(message+msg_end) == '\0') break;
+    }
+
+    ++ msg_end;
+  }
+
+  if (size != 0) *size = _size;
+  return msg_wrds;
 }
