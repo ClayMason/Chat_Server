@@ -37,7 +37,7 @@ int contains (char** lst, int size, char* wrd);
 void logout (int user_index);
 int find(char** lst, int size, char* wrd);
 void who (char** buffer, int* bytes);
-void broadcast (char buffer[], char* username);
+void broadcast (char buffer[], char* username, const struct sockaddr *dest_addr, socklen_t addrlen);
 
 int main (int argc, char** argv) {
   // parse arguments
@@ -178,10 +178,34 @@ int main (int argc, char** argv) {
     if ( FD_ISSET(udp_sd, &readfds)) {
       // udp datagram recieved
       // call recieve ...
+      memset ((void *) buffer, 0, BUFFER_SIZE);
       n = recvfrom (udp_sd, buffer, BUFFER_SIZE, 0, (struct sockaddr *) &client, (socklen_t *)&fromlen);
       printf ("MAIN: Rcvd incoming UDP datagram from: %s:%d\n",
       inet_ntop(AF_INET, &client.sin_addr, addr_buffer, ADDRBUFFER),
       ntohs(client.sin_port));
+
+      // print mesage
+      if (n > 0) buffer[n-1] = '\0';
+      else buffer[n] = '\0';
+      #ifdef DEBUG
+      printf ("MAIN: message -> [%s]\n", buffer);
+      #endif
+
+      short cmd_index = command_index (buffer, udp_cmd_lst, 2);
+      if ( cmd_index == -1 ) {
+        char err_msg[] = "ERROR invalid command\n";
+        sendto (udp_sd, err_msg, 22, 0, (struct sockaddr *) &client, fromlen);
+      }
+      else if ( strcmp(udp_cmd_lst[cmd_index], "WHO") == 0 ) {
+        printf ("MAIN: Rcvd WHO request\n");
+
+        // execute WHO request
+      }
+      else if ( strcmp(udp_cmd_lst[cmd_index], "BROADCAST") == 0 ) {
+        printf ("MAIN: Rcvd BROADCAST request\n");
+
+        // execute BROADCAST request
+      }
     }
 
   }
@@ -412,7 +436,7 @@ void * tcp_client_enter (void* args) {
           // }
           // pthread_mutex_unlock(&user_db_mutex);
 
-          if (logged_in) broadcast (buffer, login_username);
+          if (logged_in) broadcast (buffer, login_username, 0, 0);
           else {
             char err_msg[] = "ERROR not logged in\n";
             send (client_sd, err_msg, 20, 0);
@@ -578,7 +602,7 @@ void who (char** buffer, int* bytes) {
   buffer[*bytes] = '\0';
 }
 
-void broadcast (char buffer[], char* username) {
+void broadcast (char buffer[], char* username, const struct sockaddr *dest_addr, socklen_t addrlen) {
   int query_size;
   char ** query;
   char send_buffer[BUFFER_SIZE];
@@ -596,7 +620,7 @@ void broadcast (char buffer[], char* username) {
   send_buffer[amount] = '\0';
   for ( int i = 0; i < user_db_index; ++i ) {
     // send to all
-    send (user_fds[i], (void *) send_buffer, strlen(send_buffer), 0);
+    sendto (user_fds[i], (void *) send_buffer, strlen(send_buffer), 0, dest_addr, addrlen);
   }
   pthread_mutex_unlock(&user_db_mutex);
 }
