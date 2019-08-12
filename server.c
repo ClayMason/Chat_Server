@@ -119,7 +119,7 @@ int main (int argc, char** argv) {
 
   udp_server.sin_family = AF_INET;
   udp_server.sin_addr.s_addr = htonl (INADDR_ANY);
-  udp_server.sin_port = htons (0); // TODO: set the port to the port given in the args
+  udp_server.sin_port = htons (port); // TODO: set the port to the port given in the args
   if ( bind(udp_sd, (struct sockaddr *) &udp_server, sizeof(udp_server)) < 0 ) {
     perror ("bind() failed");
     return EXIT_FAILURE;
