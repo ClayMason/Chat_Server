@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <ctype.h>
 #include <string.h>
 
 /* APPLICATION PROTOCOL
@@ -31,6 +32,8 @@ char* tcp_cmd_lst[5];
 char ** snag (char* message, int* size);
 short command_index (char* message, char** command_list, int cmd_size);
 void * tcp_client_enter (void* args);
+int isAlnumString (char* str);
+int contains (char** lst, int size, char* wrd);
 
 int main (int argc, char** argv) {
   // parse arguments
@@ -190,6 +193,7 @@ void * tcp_client_enter (void* args) {
 
   char buffer[BUFFER_SIZE];
   int n;
+  int logged_in = 0; // false
 
   while (1) {
     n = recv (client_sd, buffer, BUFFER_SIZE, 0);
@@ -205,10 +209,92 @@ void * tcp_client_enter (void* args) {
       pthread_exit (0);
     }
     else {
+
       buffer[n] = '\0';
       printf ("CHILD %lu: recieve -> %s\n",
         (unsigned long) pthread_self(), buffer);
-      // x
+      // Check what message was sent.
+      short cmd_index = command_index (buffer, tcp_cmd_lst, 5);
+      if (cmd_index == -1) {
+        char error_msg[] = "ERROR invalid command\n\0";
+        send (client_sd, (void *) error_msg, 23, 0);
+      }
+
+      else {
+        // Application protocol handeling
+
+        // (1) LOGIN function
+        if (strcmp(tcp_cmd_lst[cmd_index], "LOGIN") == 0) {
+
+          // get the username
+          if (strlen(buffer) > 7) {
+
+            char* username = buffer+6;
+            int username_len = strlen(username);
+            if ( username_len >= 1 ) {
+              username[username_len-1] = '\0';
+              username_len -= 1;
+            }
+
+            #idef DEBUG
+            printf ("username: %s (len%d)\n", username, username_len);
+            #endif
+
+            pthread_mutex_lock (&user_db_mutex);
+
+            if ( username_len < 4 || username_len > 16 || !isAlnumString(username) ) {
+              char error_msg[] = "ERROR Invalid userid\n\0";
+              send (client_sd, (void *) error_msg, 22, 0);
+            }
+
+            else if ( contains(user_database, user_db_index, username) ) {
+              char error_msg[] = "ERROR Already Connected\n\0";
+              send (client_sd, (void *) error_msg, 25, 0);
+            }
+
+            else {
+              // user can login
+
+              logged_in = 1;
+
+              if (user_db_index == user_db_size) {
+                user_db_size += 10;
+                user_database = (char**) realloc (user_database, sizeof(char*) * user_db_size);
+                user_fds = (int*) realloc (user_fds, sizeof(int) * user_db_size);
+              }
+
+              //user_database[user_db_index] = username; // check if this is actually correct ...
+              user_database[user_db_index] = calloc (strlen(username)+1, sizeof(char));
+              strcpy (user_database[user_db_index], username);
+              user_fds[user_db_index] = client_sd;
+              ++ user_db_index;
+
+              char success_msg[] = "OK!\n";
+              send (client_sd, (void *) success_msg, 4, 0);
+            }
+
+            pthread_mutex_unlock (&user_db_mutex);
+          }
+        }
+        // (2) WHO function
+        else if (strcmp(tcp_cmd_lst[cmd_index], "WHO") == 0) {
+
+        }
+
+        // (3) LOGOUT function
+        else if (strcmp(tcp_cmd_lst[cmd_index], "LOGOUT") == 0) {
+
+        }
+        // (4) SEND function
+        else if (strcmp(tcp_cmd_lst[cmd_index], "SEND") == 0) {
+
+        }
+        // (5) BROADCAST function
+        else if (strcmp(tcp_cmd_lst[cmd_index], "BROADCAST") == 0) {
+
+        }
+      }
+
     }
 
   }
@@ -275,4 +361,22 @@ char ** snag (char* message, int* size) {
 
   if (size != 0) *size = _size;
   return msg_wrds;
+}
+
+int contains (char** lst, int size, char* wrd) {
+  // check if a word exiss in the list
+  for ( int i = 0; i < size; ++i ) {
+    if ( strcmp(*(lst+i), wrd) == 0 ) return 1;
+  }
+  return 0;
+}
+
+// isalnum (int c)
+int isAlnumString (char* str) {
+  int i = 0;
+  while ( i < 2000 && !*(str + i) == '\0') {
+    if ( !isalnum( *(str+i) ) ) return 0;
+    ++i;
+  }
+  return 1;
 }
