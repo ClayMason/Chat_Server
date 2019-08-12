@@ -307,7 +307,7 @@ void * tcp_client_enter (void* args) {
             }
 
             else if ( contains(user_database, user_db_index, username) ) {
-              char error_msg[] = "ERROR Already Connected\n\0";
+              char error_msg[] = "ERROR Already connected\n\0";
               send (client_sd, (void *) error_msg, 25, 0);
             }
 
