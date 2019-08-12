@@ -85,6 +85,27 @@ int main (int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  // tcp bind next
+  struct sockaddr_in tcp_server;
+  int tcp_length;
+
+  tcp_server.sin_family = AF_INET;
+  tcp_server.sin_addr.s_addr = htonl (INADDR_ANY);
+  tcp_server.sin_port = htons ( port );
+  tcp_length = sizeof (tcp_server);
+
+  if ( bind (tcp_sd, (struct sockaddr *) &tcp_server, tcp_length) < 0 ) {
+    perror ("bind() failed");
+    return EXIT_FAILURE;
+  }
+
+  if ( listen(tcp_sd, BACKLOG) == -1 ) {
+    perror ("listen() failed");
+    return EXIT_FAILURE;
+  }
+
+  printf ("Listening for TCP connections on port: %d\n", port);
+
   // bind the sockets to a port
   // udp bind first
   struct sockaddr_in udp_server;
@@ -107,29 +128,7 @@ int main (int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  printf ("UDP server successfuly setup on port: %d\n", ntohs( udp_server.sin_port ));
-
-
-  // tcp bind next
-  struct sockaddr_in tcp_server;
-  int tcp_length;
-
-  tcp_server.sin_family = AF_INET;
-  tcp_server.sin_addr.s_addr = htonl (INADDR_ANY);
-  tcp_server.sin_port = htons ( port );
-  tcp_length = sizeof (tcp_server);
-
-  if ( bind (tcp_sd, (struct sockaddr *) &tcp_server, tcp_length) < 0 ) {
-    perror ("bind() failed");
-    return EXIT_FAILURE;
-  }
-
-  if ( listen(tcp_sd, BACKLOG) == -1 ) {
-    perror ("listen() failed");
-    return EXIT_FAILURE;
-  }
-
-  printf ("TCP server successfully setup on port: %d\n", port);
+  printf ("Listening for UDP datagrams on port: %d\n", ntohs( udp_server.sin_port ));
 
   // setup the client connections
   fd_set readfds;
