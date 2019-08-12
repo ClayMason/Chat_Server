@@ -34,6 +34,8 @@ short command_index (char* message, char** command_list, int cmd_size);
 void * tcp_client_enter (void* args);
 int isAlnumString (char* str);
 int contains (char** lst, int size, char* wrd);
+void logout (int user_index);
+int find(char** lst, int size, char* wrd);
 
 int main (int argc, char** argv) {
   // parse arguments
@@ -194,6 +196,7 @@ void * tcp_client_enter (void* args) {
   char buffer[BUFFER_SIZE];
   int n;
   int logged_in = 0; // false
+  char* login_username;
 
   while (1) {
     n = recv (client_sd, buffer, BUFFER_SIZE, 0);
@@ -264,6 +267,9 @@ void * tcp_client_enter (void* args) {
               user_database[user_db_index] = calloc (strlen(username)+1, sizeof(char));
               strcpy (user_database[user_db_index], username);
               user_fds[user_db_index] = client_sd;
+
+              login_username = user_database[user_db_index];
+
               ++ user_db_index;
 
               char success_msg[] = "OK!\n";
@@ -290,7 +296,18 @@ void * tcp_client_enter (void* args) {
 
         // (3) LOGOUT function
         else if (strcmp(tcp_cmd_lst[cmd_index], "LOGOUT") == 0) {
+          if ( !logged_in ) {
+            // give error of not logged in...
+            char error_msg[] = "ERROR not logged in.\n";
+            send (client_sd, (void *) error_msg, 21, 0);
+          }
+          else {
+            int login_index = find(user_database, user_db_index, login_username);
+            logout (login_index);
 
+            char success_msg[] = "OK!\n";
+            send (client_sd, (void *) success_msg, 4, 0);
+          }
         }
         // (4) SEND function
         else if (strcmp(tcp_cmd_lst[cmd_index], "SEND") == 0) {
@@ -387,4 +404,38 @@ int isAlnumString (char* str) {
     ++i;
   }
   return 1;
+}
+
+void logout (int user_index) {
+
+  if ( user_index < user_db_size ) {
+    pthread_mutex_lock (&user_db_mutex);
+
+    free (*(user_database+user_index));
+    if ( user_index + 1 == user_db_index ) {
+      // remove normally, since I was the last to be added to the list
+      *(user_database+user_index) = NULL;
+      *(user_fds+user_index) = 0;
+    }
+
+    else { // move the last added user to the spot where this user is logging out...
+    *(user_database+user_index) = *(user_database + user_db_index - 1);
+    *(user_fds + user_index) = *(user_fds + user_db_index - 1);
+
+    *(user_database + user_db_index - 1) = NULL;
+    *(user_fds + user_db_index - 1) = 0;
+    }
+
+    pthread_mutex_unlock (&user_db_mutex);
+  }
+}
+
+
+int find(char** lst, int size, char* wrd) {
+  // given a list and size of the list, determine where wrd exists in lst (which index).
+  // if not found, return -1
+  for ( int i = 0; i < size; ++i ) {
+    if ( strcmp(*(lst+i), wrd) == 0 ) return i;
+  }
+  return -1;
 }
