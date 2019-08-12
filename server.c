@@ -210,7 +210,8 @@ void * tcp_client_enter (void* args) {
     }
     else {
 
-      buffer[n] = '\0';
+      if (n > 0) buffer[n-1] = '\0';
+      else buffer[n] = '\0';
       printf ("CHILD %lu: recieve -> %s\n",
         (unsigned long) pthread_self(), buffer);
       // Check what message was sent.
@@ -231,12 +232,8 @@ void * tcp_client_enter (void* args) {
 
             char* username = buffer+6;
             int username_len = strlen(username);
-            if ( username_len >= 1 ) {
-              username[username_len-1] = '\0';
-              username_len -= 1;
-            }
 
-            #idef DEBUG
+            #ifdef DEBUG
             printf ("username: %s (len%d)\n", username, username_len);
             #endif
 
@@ -278,7 +275,17 @@ void * tcp_client_enter (void* args) {
         }
         // (2) WHO function
         else if (strcmp(tcp_cmd_lst[cmd_index], "WHO") == 0) {
+          // return all of the people on the server...
+          strcpy (buffer, "OK!\n");
+          int offset = 4;
+          for ( int i = 0; i < user_db_index; ++i ) {
+            strcpy (buffer+offset, user_database[i]);
+            offset += strlen(user_database[i]);
+            buffer[offset] = '\n';
+            ++offset;
+          }
 
+          send (client_sd, (void *) buffer, offset, 0);
         }
 
         // (3) LOGOUT function
@@ -316,6 +323,7 @@ short command_index (char* message, char** command_list, int cmd_size) {
   cmd[end_index] = '\0';
   strncpy (cmd, message, end_index);
   for ( int i = 0; i < cmd_size; ++i ) {
+    // printf ("comparing %s to  %s\n", cmd, *(command_list+i));
     if ( strcmp(cmd, *(command_list+i)) == 0 ) return i;
   }
   return -1;
