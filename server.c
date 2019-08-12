@@ -37,7 +37,8 @@ int contains (char** lst, int size, char* wrd);
 void logout (int user_index);
 int find(char** lst, int size, char* wrd);
 void who (char** buffer, int* bytes);
-void broadcast (char buffer[], char* username, const struct sockaddr *dest_addr, socklen_t addrlen);
+void broadcast (int from_fd, char buffer[], char* username, const struct sockaddr *dest_addr, socklen_t addrlen);
+int indexOf (char* msg, char letter);
 
 int main (int argc, char** argv) {
   // parse arguments
@@ -48,7 +49,12 @@ int main (int argc, char** argv) {
 
   int port;
   port = atoi(*(argv+1));
+
+  #ifdef DEBUG
   printf ("Setting up server on port: %d\n", port);
+  #endif
+
+  printf ("MAIN: Started server\n");
 
   // setup commands list
   user_db_index = 0;
@@ -140,6 +146,11 @@ int main (int argc, char** argv) {
   int fromlen = sizeof (client);
   int n;
 
+  int bytes_;
+  char* alloc_buffer = calloc(BUFFER_SIZE, sizeof(char));
+  char* udp_username = calloc (11, sizeof(char));
+  strcpy ( udp_username, "UDP-client");
+
   while (1) {
     // set the readfds to include the tcp socket discriptor and all the client socket descriptors
     // from udp.
@@ -200,11 +211,15 @@ int main (int argc, char** argv) {
         printf ("MAIN: Rcvd WHO request\n");
 
         // execute WHO request
+        who(&alloc_buffer, &bytes_);
+        sendto (udp_sd, (void *) alloc_buffer, bytes_, 0, (struct sockaddr *) &client, fromlen);
       }
       else if ( strcmp(udp_cmd_lst[cmd_index], "BROADCAST") == 0 ) {
         printf ("MAIN: Rcvd BROADCAST request\n");
 
         // execute BROADCAST request
+
+        broadcast (udp_sd, buffer, udp_username, (struct sockaddr *) &client, fromlen);
       }
     }
 
@@ -213,13 +228,18 @@ int main (int argc, char** argv) {
   // free and close everything
   free (user_database);
   free (user_fds);
+  free (udp_username);
+  free (alloc_buffer);
 
   return EXIT_SUCCESS;
 }
 
 void * tcp_client_enter (void* args) {
   int client_sd = *( (int*) args );
+
+  #ifdef DEBUG
   printf ("CHILD %lu: Connected to client (sd -> %d).\n", (unsigned long) pthread_self(), client_sd);
+  #endif
 
   char buffer[BUFFER_SIZE];
   char* alloc_buffer = calloc (BUFFER_SIZE, sizeof(char));
@@ -238,7 +258,7 @@ void * tcp_client_enter (void* args) {
 
     else if ( n == 0 ) {
       // the client has disconnected.
-      printf ("CHILD %lu: Child disconnected\n", (unsigned long) pthread_self());
+      printf ("CHILD %lu: Client disconnected\n", (unsigned long) pthread_self());
       pthread_exit (0);
     }
     else {
@@ -382,27 +402,39 @@ void * tcp_client_enter (void* args) {
           pthread_mutex_lock (&user_db_mutex);
           recipient_index = find(user_database, user_db_index, *(query));
           if ( recipient_index == -1 ) {
-            char err_msg[] = "ERROR Unknown userid\n";
-            send (client_sd, (void *) err_msg, 21, 0);
+            char err_msg[] = "ERROR (Unknown userid)\n";
+            send (client_sd, (void *) err_msg, 23, 0);
             valid_request = 0;
           }
 
-          if (valid_request) {printf ("CHILD %lu: Rcvd SEND request to userid %s\n",
+          if (valid_request) {
+            printf ("CHILD %lu: Rcvd SEND request to userid %s\n",
             (unsigned long) pthread_self(), *(user_database+recipient_index));
             // send the ok to the sender first...
-            char success_msg[] = "OK!\n";
-            send (client_sd, (void *) success_msg, 4, 0);
             // send the message to the recipient
             #ifdef DEBUG
             printf ("message unpacking sizes...:\n\t[FROM ] = 5\n");
             printf ("\t[%s ] = %ld\n",login_username, strlen(login_username) + 1);
             printf ("\t[%s ] = %ld\n",*(query+1), strlen(*(query+1)) + 1);
           #endif
-            int amount = snprintf (alloc_buffer, BUFFER_SIZE, "FROM %s %d %s\n",
-              login_username, msg_len, buffer+5+strlen(login_username)+strlen(*(query+1))+2);
-            alloc_buffer[amount] = '\0';
+            printf ("buffer: %s\n", buffer);
+            int msg_start = indexOf (buffer, (char) 92); // get the first instance of newline -> this is the start of the mesage
+            if (msg_start == -1 || *(buffer+msg_start+1) != 'n') {
+              char err_msg[] = "ERROR (Invalid SEND format)\n";
+              send (client_sd, (void *) err_msg, 28, 0);
+            }
+            else {
+              char success_msg[] = "OK!\n";
+              send (client_sd, (void *) success_msg, 4, 0);
 
-            send (user_fds[recipient_index], (void *) alloc_buffer, strlen(alloc_buffer), 0);
+              printf ("msg: [%s]\n", buffer+msg_start+2);
+
+              int amount = snprintf (alloc_buffer, BUFFER_SIZE, "FROM %s %d %s\n",
+                login_username, msg_len, buffer+msg_start+2);
+              alloc_buffer[amount] = '\0';
+
+              send (user_fds[recipient_index], (void *) alloc_buffer, strlen(alloc_buffer), 0);
+            }
 
           }
           pthread_mutex_unlock (&user_db_mutex);
@@ -436,7 +468,7 @@ void * tcp_client_enter (void* args) {
           // }
           // pthread_mutex_unlock(&user_db_mutex);
 
-          if (logged_in) broadcast (buffer, login_username, 0, 0);
+          if (logged_in) broadcast (client_sd, buffer, login_username, 0, 0);
           else {
             char err_msg[] = "ERROR not logged in\n";
             send (client_sd, err_msg, 20, 0);
@@ -589,6 +621,17 @@ int find(char** lst, int size, char* wrd) {
   return -1;
 }
 
+int indexOf (char* msg, char letter) {
+  int ind = 0;
+  while ( *(msg+ind) != '\0' ) {
+    // printf ("comparing %d to %c:%d\n", (int) letter, *(msg+ind), (int) *(msg+ind));
+    if ( *(msg+ind) == letter ) return ind;
+    ++ ind;
+  }
+
+  return -1;
+}
+
 void who (char** buffer, int* bytes) {
   strcpy (*buffer, "OK!\n");
   *bytes = 4;
@@ -602,7 +645,7 @@ void who (char** buffer, int* bytes) {
   buffer[*bytes] = '\0';
 }
 
-void broadcast (char buffer[], char* username, const struct sockaddr *dest_addr, socklen_t addrlen) {
+void broadcast (int from_fd, char buffer[], char* username, const struct sockaddr *dest_addr, socklen_t addrlen) {
   int query_size;
   char ** query;
   char send_buffer[BUFFER_SIZE];
@@ -615,12 +658,21 @@ void broadcast (char buffer[], char* username, const struct sockaddr *dest_addr,
 
   pthread_mutex_lock(&user_db_mutex);
   int broadcast_len = atoi(*query);
-  int amount = snprintf (send_buffer, BUFFER_SIZE, "FROM %s %d %s\n",
-    username, broadcast_len, buffer+10+strlen(*query)+1);
-  send_buffer[amount] = '\0';
-  for ( int i = 0; i < user_db_index; ++i ) {
-    // send to all
-    sendto (user_fds[i], (void *) send_buffer, strlen(send_buffer), 0, dest_addr, addrlen);
+
+  // check for the newline...
+  int newline_index = indexOf(buffer, (char) 92);
+  if ( newline_index == -1 || *(buffer+newline_index+1) != 'n' ) {
+    char err_msg[] = "ERROR (Invalid BROADCAST format)\n"; // len 33
+    sendto (from_fd, (void *) err_msg, 33, 0, dest_addr, addrlen);
+  }
+  else {
+    int amount = snprintf (send_buffer, BUFFER_SIZE, "FROM %s %d %s\n",
+      username, broadcast_len, buffer+newline_index+2);
+    send_buffer[amount] = '\0';
+    for ( int i = 0; i < user_db_index; ++i ) {
+      // send to all
+      sendto (user_fds[i], (void *) send_buffer, strlen(send_buffer), 0, dest_addr, addrlen);
+    }
   }
   pthread_mutex_unlock(&user_db_mutex);
 }
