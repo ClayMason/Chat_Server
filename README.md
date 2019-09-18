@@ -10,20 +10,20 @@ To run, enter the program into the terminal with one argument specifying the por
 After connecting to the server, the client can connect to other clients via the server.
 
 ## TCP Client
-**LOGIN** <username>
+**LOGIN** <username>:
   *Logs the user into the server with the specified username.*
   
-**WHO**
+**WHO**:
   *Returns a list of all the users logged into the chat server.*
   
-**SEND** <recipient_id> <msg_len>\n<message_contents>
+**SEND** <recipient_id> <msg_len>\n<message_contents>:
   *Sends the message to the recipient if they exist on the server.*
   *Otherwise, the sender client is prompted that the user does not exist on the server.*
 
-**BROADCASE** <msg_len>\n<message_contents>
+**BROADCASE** <msg_len>\n<message_contents>:
   *Sends a message to all the users logged into the server.*
   
-**LOGOUT**
+**LOGOUT**:
   *Logs the user out of the server.*
   
 ## UDP Client
